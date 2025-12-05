@@ -1,0 +1,35 @@
+{
+  "name": "JSON Edit Project",
+  "version": "1.0.0",
+  "description": "A project demonstrating JSON editing with JQ",
+  "users": [
+    {
+      "id": 1,
+      "name": "Alice",
+      "email": "alice@example.com",
+      "active": true
+    },
+    {
+      "id": 2,
+      "name": "Bob",
+      "email": "bob@example.com",
+      "active": false
+    },
+    {
+      "id": 3,
+      "name": "Charlie",
+      "email": "charlie@example.com",
+      "active": true
+    }
+  ],
+  "settings": {
+    "theme": "dark",
+    "language": "en",
+    "notifications": {
+      "email": true,
+      "sms": false,
+      "push": true
+    }
+  },
+  "tags": ["json", "jq", "editing", "tools"]
+}
