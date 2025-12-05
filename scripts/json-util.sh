@@ -15,6 +15,29 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Temp file for atomic operations
+TEMP_FILE=""
+
+# Cleanup function to remove temp files on exit
+cleanup() {
+    if [ -n "$TEMP_FILE" ] && [ -f "$TEMP_FILE" ]; then
+        rm -f "$TEMP_FILE"
+    fi
+}
+trap cleanup EXIT
+
+# Validate JSON path - only allow safe jq path patterns
+validate_json_path() {
+    local path="$1"
+    # Allow only safe characters in jq paths
+    # Path must start with a dot for jq
+    # Disallow dangerous characters like $, `, |, ;, &, etc.
+    if [[ "$path" != .* ]] || [[ "$path" =~ [\$\`\|\;\&\(\)\<\>\!\{\}] ]]; then
+        echo -e "${RED}Error: Invalid JSON path format. Path must start with '.' and contain only safe characters${NC}"
+        exit 1
+    fi
+}
+
 usage() {
     echo -e "${BLUE}JSON Edit Utility${NC}"
     echo ""
@@ -65,6 +88,7 @@ case $COMMAND in
             echo -e "${RED}Error: JSON path required${NC}"
             usage
         fi
+        validate_json_path "$3"
         jq "$3" "$INPUT_FILE"
         ;;
     
@@ -73,10 +97,17 @@ case $COMMAND in
             echo -e "${RED}Error: Path and value required${NC}"
             usage
         fi
+        validate_json_path "$3"
         TEMP_FILE=$(mktemp)
-        jq "$3 = $4" "$INPUT_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$INPUT_FILE"
-        echo -e "${GREEN}Updated $3 to $4${NC}"
-        jq '.' "$INPUT_FILE"
+        if jq --arg val "$4" "$3 = \$val" "$INPUT_FILE" > "$TEMP_FILE"; then
+            mv "$TEMP_FILE" "$INPUT_FILE"
+            TEMP_FILE=""
+            echo -e "${GREEN}Updated $3${NC}"
+            jq '.' "$INPUT_FILE"
+        else
+            echo -e "${RED}Error: Failed to update JSON${NC}"
+            exit 1
+        fi
         ;;
     
     delete)
@@ -84,10 +115,17 @@ case $COMMAND in
             echo -e "${RED}Error: JSON path required${NC}"
             usage
         fi
+        validate_json_path "$3"
         TEMP_FILE=$(mktemp)
-        jq "del($3)" "$INPUT_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$INPUT_FILE"
-        echo -e "${GREEN}Deleted $3${NC}"
-        jq '.' "$INPUT_FILE"
+        if jq "del($3)" "$INPUT_FILE" > "$TEMP_FILE"; then
+            mv "$TEMP_FILE" "$INPUT_FILE"
+            TEMP_FILE=""
+            echo -e "${GREEN}Deleted $3${NC}"
+            jq '.' "$INPUT_FILE"
+        else
+            echo -e "${RED}Error: Failed to delete from JSON${NC}"
+            exit 1
+        fi
         ;;
     
     add-array)
@@ -95,10 +133,17 @@ case $COMMAND in
             echo -e "${RED}Error: Path and value required${NC}"
             usage
         fi
+        validate_json_path "$3"
         TEMP_FILE=$(mktemp)
-        jq "$3 += [$4]" "$INPUT_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$INPUT_FILE"
-        echo -e "${GREEN}Added $4 to $3${NC}"
-        jq '.' "$INPUT_FILE"
+        if jq --arg val "$4" "$3 += [\$val]" "$INPUT_FILE" > "$TEMP_FILE"; then
+            mv "$TEMP_FILE" "$INPUT_FILE"
+            TEMP_FILE=""
+            echo -e "${GREEN}Added item to $3${NC}"
+            jq '.' "$INPUT_FILE"
+        else
+            echo -e "${RED}Error: Failed to add to array${NC}"
+            exit 1
+        fi
         ;;
     
     pretty)
